@@ -76,10 +76,31 @@ real PenumbraSize(real Reciever, real Blocker)
 bool BlockerSearch(inout real averageBlockerDepth, inout real numBlockers, real lightArea, real3 coord, real2 sampleJitter, real2 sampleBias, ShadowContext shadowContext, float slice, uint texIdx, uint sampIdx, int sampleCount)
 {
     real blockerSum = 0.0;
-    for (int i = 0; i < sampleCount; ++i)
+    // for (int i = 0; i < sampleCount; ++i)
+    // {
+    //     real2 offset = real2(poissonDisk64[i].x *  sampleJitter.y + poissonDisk64[i].y * sampleJitter.x,
+    //                          poissonDisk64[i].x * -sampleJitter.x + poissonDisk64[i].y * sampleJitter.y) * lightArea;
+
+    //     real shadowMapDepth = SampleShadow_T2DA(shadowContext, texIdx, sampIdx, coord.xy + offset, slice).x;
+
+    //     if (COMPARE_DEVICE_DEPTH_CLOSER(shadowMapDepth, coord.z + dot(sampleBias, offset)))
+    //     {
+    //         blockerSum  += shadowMapDepth;
+    //         numBlockers += 1.0;
+    //     }
+    // }
+
+    const real GOLDEN_ANGLE = PI * (3.0 - sqrt(5.0));
+    const real GOLDEN_RATIO_2 = GOLDEN_ANGLE / (2.0 * PI);
+    real sampleCountInverse = rcp((real)sampleCount);
+    real sampleCountBias = sampleJitter.x * sampleCountInverse;
+    real randomRotation = sampleJitter.y * 2.0 * PI;
+    for(int i = 0; i < sampleCount; ++i)
     {
-        real2 offset = real2(poissonDisk64[i].x *  sampleJitter.y + poissonDisk64[i].y * sampleJitter.x,
-                             poissonDisk64[i].x * -sampleJitter.x + poissonDisk64[i].y * sampleJitter.y) * lightArea;
+        real radius = lightArea * sqrt((real)i * sampleCountInverse + sampleCountBias);
+        real theta = frac((real)i * GOLDEN_RATIO_2) * 2.0 * PI + randomRotation;
+
+        real2 offset = real2(cos(theta), sin(theta)) * radius;
 
         real shadowMapDepth = SampleShadow_T2DA(shadowContext, texIdx, sampIdx, coord.xy + offset, slice).x;
 
@@ -97,10 +118,31 @@ bool BlockerSearch(inout real averageBlockerDepth, inout real numBlockers, real 
 bool BlockerSearch(inout real averageBlockerDepth, inout real numBlockers, real lightArea, real3 coord, float slice, real2 sampleJitter, real2 sampleBias, Texture2DArray shadowMap, SamplerState PointSampler, int sampleCount)
 {
     real blockerSum = 0.0;
-    for (int i = 0; i < sampleCount; ++i)
+    // for (int i = 0; i < sampleCount; ++i)
+    // {
+    //     real2 offset = real2(poissonDisk64[i].x *  sampleJitter.y + poissonDisk64[i].y * sampleJitter.x,
+    //                          poissonDisk64[i].x * -sampleJitter.x + poissonDisk64[i].y * sampleJitter.y) * lightArea;
+
+    //     real shadowMapDepth = SAMPLE_TEXTURE2D_ARRAY_LOD(shadowMap, PointSampler, coord.xy + offset, slice, 0.0).x;
+
+    //     if (COMPARE_DEVICE_DEPTH_CLOSER(shadowMapDepth, coord.z + dot(sampleBias, offset)))
+    //     {
+    //         blockerSum  += shadowMapDepth;
+    //         numBlockers += 1.0;
+    //     }
+    // }
+
+    const real GOLDEN_ANGLE = PI * (3.0 - sqrt(5.0));
+    const real GOLDEN_RATIO_2 = GOLDEN_ANGLE / (2.0 * PI);
+    real sampleCountInverse = rcp((real)sampleCount);
+    real sampleCountBias = sampleJitter.x * sampleCountInverse;
+    real randomRotation = sampleJitter.y * 2.0 * PI;
+    for(int i = 0; i < sampleCount; ++i)
     {
-        real2 offset = real2(poissonDisk64[i].x *  sampleJitter.y + poissonDisk64[i].y * sampleJitter.x,
-                             poissonDisk64[i].x * -sampleJitter.x + poissonDisk64[i].y * sampleJitter.y) * lightArea;
+        real radius = lightArea * sqrt((real)i * sampleCountInverse + sampleCountBias);
+        real theta = frac((real)i * GOLDEN_RATIO_2) * 2.0 * PI + randomRotation;
+
+        real2 offset = real2(cos(theta), sin(theta)) * radius;
 
         real shadowMapDepth = SAMPLE_TEXTURE2D_ARRAY_LOD(shadowMap, PointSampler, coord.xy + offset, slice, 0.0).x;
 
@@ -124,10 +166,37 @@ real PCSS(real3 coord, real filterRadius, real4 scaleOffset, float slice, real2 
     real VMax = scaleOffset.w + scaleOffset.y;
 
     real sum = 0.0;
+    // for(int i = 0; i < sampleCount; ++i)
+    // {
+    //     real2 offset = real2(poissonDisk64[i].x *  sampleJitter.y + poissonDisk64[i].y * sampleJitter.x,
+    //                          poissonDisk64[i].x * -sampleJitter.x + poissonDisk64[i].y * sampleJitter.y) * filterRadius;
+
+    //     real U = coord.x + offset.x;
+    //     real V = coord.y + offset.y;
+
+    //     //NOTE: We must clamp the sampling within the bounds of the shadow atlas.
+    //     //        Overfiltering will leak results from other shadow lights.
+    //     //TODO: Investigate moving this to blocker search.
+    //     if (U <= UMin || U >= UMax || V <= VMin || V >= VMax)
+    //         sum += SampleCompShadow_T2DA(shadowContext, texIdx, sampIdx, real3(coord.xy, coord.z), slice).r;
+    //     else
+    //         sum += SampleCompShadow_T2DA(shadowContext, texIdx, sampIdx, real3(U, V, coord.z + dot(sampleBias, offset)), slice).r;
+    // }
+
+    // return sum / sampleCount;
+
+    const real GOLDEN_ANGLE = PI * (3.0 - sqrt(5.0));
+    const real GOLDEN_RATIO_2 = GOLDEN_ANGLE / (2.0 * PI);
+    real sampleCountInverse = rcp((real)sampleCount);
+    real sampleCountBias = sampleJitter.x * sampleCountInverse;
+    real randomRotation = sampleJitter.y * 2.0 * PI;
+
     for(int i = 0; i < sampleCount; ++i)
     {
-        real2 offset = real2(poissonDisk64[i].x *  sampleJitter.y + poissonDisk64[i].y * sampleJitter.x,
-                             poissonDisk64[i].x * -sampleJitter.x + poissonDisk64[i].y * sampleJitter.y) * filterRadius;
+        real radius = filterRadius * sqrt((real)i * sampleCountInverse + sampleCountBias);
+        real theta = frac((real)i * GOLDEN_RATIO_2) * 2.0 * PI + randomRotation;
+
+        real2 offset = real2(cos(theta), sin(theta)) * radius;
 
         real U = coord.x + offset.x;
         real V = coord.y + offset.y;
@@ -153,10 +222,37 @@ real PCSS(real3 coord, real filterRadius, real4 scaleOffset, float slice, real2 
     real VMax = scaleOffset.w + scaleOffset.y;
 
     real sum = 0.0;
+    // for(int i = 0; i < sampleCount; ++i)
+    // {
+    //     real2 offset = real2(poissonDisk64[i].x *  sampleJitter.y + poissonDisk64[i].y * sampleJitter.x,
+    //                          poissonDisk64[i].x * -sampleJitter.x + poissonDisk64[i].y * sampleJitter.y) * filterRadius;
+
+    //     real U = coord.x + offset.x;
+    //     real V = coord.y + offset.y;
+
+    //     //NOTE: We must clamp the sampling within the bounds of the shadow atlas.
+    //     //        Overfiltering will leak results from other shadow lights.
+    //     //TODO: Investigate moving this to blocker search.
+    //     if (U <= UMin || U >= UMax || V <= VMin || V >= VMax)
+    //         sum += SAMPLE_TEXTURE2D_ARRAY_SHADOW(shadowMap, compSampler, real3(coord.xy, coord.z), slice).r;
+    //     else
+    //         sum += SAMPLE_TEXTURE2D_ARRAY_SHADOW(shadowMap, compSampler, real3(U, V, coord.z + dot(sampleBias, offset)), slice).r;
+    // }
+
+    // return sum / sampleCount;
+
+    const real GOLDEN_ANGLE = PI * (3.0 - sqrt(5.0));
+    const real GOLDEN_RATIO_2 = GOLDEN_ANGLE / (2.0 * PI);
+    real sampleCountInverse = rcp((real)sampleCount);
+    real sampleCountBias = sampleJitter.x * sampleCountInverse;
+    real randomRotation = sampleJitter.y * 2.0 * PI;
+
     for(int i = 0; i < sampleCount; ++i)
     {
-        real2 offset = real2(poissonDisk64[i].x *  sampleJitter.y + poissonDisk64[i].y * sampleJitter.x,
-                             poissonDisk64[i].x * -sampleJitter.x + poissonDisk64[i].y * sampleJitter.y) * filterRadius;
+        real radius = filterRadius * sqrt((real)i * sampleCountInverse + sampleCountBias);
+        real theta = frac((real)i * GOLDEN_RATIO_2) * 2.0 * PI + randomRotation;
+
+        real2 offset = real2(cos(theta), sin(theta)) * radius;
 
         real U = coord.x + offset.x;
         real V = coord.y + offset.y;
